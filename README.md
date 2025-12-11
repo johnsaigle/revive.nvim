@@ -1,4 +1,4 @@
-# revive-diagnostics.nvim
+# revive.nvim
 
 Neovim diagnostics integration for [revive](https://github.com/mgechev/revive), a fast and configurable Go linter.
 
@@ -25,7 +25,7 @@ Built using the [sast-nvim](https://github.com/johnsaigle/sast-nvim) library for
 
 ```lua
 {
-  "your-username/revive-diagnostics.nvim",
+  "johnsaigle/revive.nvim",
   dependencies = {
     "johnsaigle/sast-nvim",
     "nvimtools/none-ls.nvim",
@@ -37,21 +37,6 @@ Built using the [sast-nvim](https://github.com/johnsaigle/sast-nvim) library for
       filetypes = { "go" },
       run_mode = "save", -- "save" or "change"
     })
-  end,
-}
-```
-
-### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
-
-```lua
-use {
-  "your-username/revive-diagnostics.nvim",
-  requires = {
-    "johnsaigle/sast-nvim",
-    "nvimtools/none-ls.nvim",
-  },
-  config = function()
-    require("revive-diagnostics").setup()
   end,
 }
 ```
@@ -174,8 +159,3 @@ revive -version
 2. Verify none-ls is installed and configured
 3. Check your `minimum_severity` setting
 4. Ensure you're editing a `.go` file (not `*_test.go` by default)
-
-## License
-
-MIT
-# revive.nvim
