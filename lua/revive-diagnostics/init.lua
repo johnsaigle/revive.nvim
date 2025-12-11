@@ -8,13 +8,13 @@ local function build_revive_args(config, filepath)
 		"-formatter", "json",
 	}
 
-	-- Add the file path
-	table.insert(args, filepath)
-
-	-- Add any extra arguments from config
+	-- Add any extra arguments from config first (like -exclude patterns)
 	for _, arg in ipairs(config.extra_args or {}) do
 		table.insert(args, arg)
 	end
+
+	-- Add the file path last
+	table.insert(args, filepath)
 
 	return args
 end
