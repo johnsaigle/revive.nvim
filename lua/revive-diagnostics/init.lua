@@ -43,11 +43,12 @@ local function transform_result(result, config)
 	end
 
 	-- Build diagnostic object
+	-- Note: none-ls expects 1-indexed row/col fields, not 0-indexed lnum/col
 	local diag = {
-		lnum = (result.Position.Start.Line or 1) - 1,
-		col = (result.Position.Start.Column or 1) - 1,
-		end_lnum = (result.Position.End and result.Position.End.Line or result.Position.Start.Line) - 1,
-		end_col = (result.Position.End and result.Position.End.Column or result.Position.Start.Column) - 1,
+		row = result.Position.Start.Line or 1,
+		col = result.Position.Start.Column or 1,
+		end_row = (result.Position.End and result.Position.End.Line) or result.Position.Start.Line,
+		end_col = (result.Position.End and result.Position.End.Column) or result.Position.Start.Column,
 		severity = severity,
 		message = message,
 		source = "revive",
