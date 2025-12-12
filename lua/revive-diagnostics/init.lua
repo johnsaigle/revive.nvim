@@ -2,6 +2,25 @@ local M = {}
 
 local sast = require('sast-nvim')
 
+-- Find the Go package directory containing the given file
+-- Returns the directory path containing Go files that belong to the same package
+local function find_package_dir(filepath)
+	if not filepath or filepath == "" then
+		return nil
+	end
+	
+	-- Get the directory containing the file
+	local dir = vim.fn.fnamemodify(filepath, ":h")
+	
+	-- Check if directory exists and contains .go files
+	local go_files = vim.fn.glob(dir .. "/*.go", false, true)
+	if #go_files > 0 then
+		return dir
+	end
+	
+	return nil
+end
+
 -- Build command arguments for revive
 local function build_revive_args(config, filepath)
 	local args = {
@@ -13,8 +32,22 @@ local function build_revive_args(config, filepath)
 		table.insert(args, arg)
 	end
 
-	-- Add the file path last
-	table.insert(args, filepath)
+	-- Store the current filepath in config for filtering in transform_result
+	-- This is needed when package_aware is enabled
+	config._current_filepath = filepath
+
+	-- Determine what to analyze based on package_aware setting
+	local target_path = filepath
+	if config.package_aware then
+		local pkg_dir = find_package_dir(filepath)
+		if pkg_dir then
+			-- Analyze the entire package directory
+			target_path = pkg_dir .. "/."
+		end
+	end
+
+	-- Add the target path last
+	table.insert(args, target_path)
 
 	return args
 end
@@ -56,8 +89,21 @@ local function transform_result(result, config)
 			rule_name = result.RuleName,
 			category = result.Category,
 			confidence = result.Confidence,
+			filename = result.Position and result.Position.Start and result.Position.Start.Filename, -- Store filename for filtering
 		}
 	}
+
+	-- Mark diagnostics for filtering in package-aware mode
+	if config.package_aware and config._current_filepath and result.Position and result.Position.Start and result.Position.Start.Filename then
+		-- Normalize paths for comparison
+		local current_file = vim.fn.fnamemodify(config._current_filepath, ":t")
+		local result_file = vim.fn.fnamemodify(result.Position.Start.Filename, ":t")
+		
+		-- Mark this diagnostic if it's not for the current file
+		if current_file ~= result_file then
+			diag.user_data._skip_diagnostic = true
+		end
+	end
 
 	return diag
 end
@@ -65,11 +111,35 @@ end
 -- Create the revive adapter
 local revive_adapter = sast.create_adapter({
 	name = "revive",
-	executable = "revive",
+	-- executable = "revive",
+	executable = "revive-rules",
 	build_args = build_revive_args,
 	validate_result = validate_result,
 	transform_result = transform_result,
 })
+
+-- Wrap the run_scan method to add package-aware filtering
+local original_run_scan = revive_adapter.run_scan
+function revive_adapter.run_scan(params, callback)
+	if revive_adapter.config.package_aware then
+		-- In package-aware mode, wrap the callback to filter results
+		local wrapped_callback = function(diagnostics)
+			-- Filter out diagnostics marked for skipping
+			local filtered = {}
+			for _, diag in ipairs(diagnostics) do
+				if not (diag.user_data and diag.user_data._skip_diagnostic) then
+					table.insert(filtered, diag)
+				end
+			end
+			callback(filtered)
+		end
+		
+		original_run_scan(params, wrapped_callback)
+	else
+		-- In file mode, use original behavior
+		original_run_scan(params, callback)
+	end
+end
 
 -- Setup function for users to call
 function M.setup(opts)
@@ -80,6 +150,7 @@ function M.setup(opts)
 		run_mode = "save", -- "save" or "change"
 		debounce_ms = 1000,
 		minimum_severity = vim.diagnostic.severity.HINT,
+		package_aware = true, -- Enable package-level analysis by default
 		extra_args = {
 			-- Exclude test files by default
 			"-exclude", "**/*_test.go",
